@@ -25,7 +25,7 @@
 
 (provide 'tramp-patch)
 
-(when nil
+(eval-after-load "tramp"
   (defun tramp-maybe-open-connection (vec)
     "Maybe open a connection VEC.
 Does not do anything if a connection is already open, but re-opens the
