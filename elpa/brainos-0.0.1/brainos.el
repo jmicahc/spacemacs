@@ -37,25 +37,6 @@
 (require 'tramp)
 
 
-(defun wrap-anaconda-mode-find-definitions (orig-fun &rest args)
-  "Find definitions on local machine."
-  (condition-case nil
-      (let* ((s (tramp-dissect-file-name (buffer-file-name)))
-             (remote-filename (tramp-file-name-localname s))
-             (pnt (point)))
-        (save-buffer)
-        (find-file
-         (concat "~/"
-                 (substring remote-filename
-                            (string-match "shining_software.*" remote-filename))))
-        (goto-char pnt))
-    (error nil))
-  (apply orig-fun args))
-
-(advice-add 'anaconda-mode-find-definitions
-            :around #'wrap-anaconda-mode-find-definitions)
-
-
 (defun wrap-python-shell-send-string (orig-fun &rest args)
   (if-let ((f (buffer-file-name)))
       (condition-case nil
@@ -148,7 +129,6 @@
 
 
 (defun brainos-setup-wrappers (symbol new-val op where)
-  (global-set-key [?\C-\'] #'python-execute-file-in-remote)
   (if new-val
       (do (advice-add 'run-python :around #'wrap-python-shell-run)
           (advice-add 'python-shell-send-string :around #'wrap-python-shell-send-string)
