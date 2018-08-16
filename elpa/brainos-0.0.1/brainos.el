@@ -22,11 +22,18 @@
 ;; Adds minimal support for programming brainos sandbox from host.
 
 ;;; Code:
-(setq brain-method "ssh")
-(setq brain-user "brain")
-(setq brain-host "sandbox")
-(setq brain-repo-dir "/opt")
 
+(provide 'brainos)
+
+(defconst brain-method "ssh")
+
+(defconst brain-user "brain")
+
+(defconst brain-host "sandbox")
+
+(defconst brain-repo-dir "/opt")
+
+(defvar brainos-enable-sandbox-support nil)
 
 (defun tramp-file-namep (filename)
   (condition-case nil
@@ -46,10 +53,10 @@
          (let ((d (file-name-directory f)))
            (cd (format "/%s:%s@%s:/" brain-method brain-user brain-host))
            (apply orig-fun args)
- curl 'https://braincorporation.atlassian.net/s/-nk60j8/b/0/1.0/_/download/resources/jira.webresources:global-static/wiki-renderer.css?streamsSourceProduct=jira' -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:61.0) Gecko/20100101 Firefox/61.0' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' -H 'Accept-Language: en-US,en;q=0.5' --compressed -H 'Cookie: cloud.session.token=eyJraWQiOiJzZXNzaW9uLXNlcnZpY2VcL3Nlc3Npb24tc2VydmljZSIsImFsZyI6IlJTMjU2In0.eyJhc3NvY2lhdGlvbnMiOltdLCJzdWIiOiI1NTcwNTg6ODZhMmIxMjctYTlkZC00MTFkLWFlZDctMGM5NjAxYmQ3NWRkIiwiYXVkIjoiYXRsYXNzaWFuIiwiaW1wZXJzb25hdGlvbiI6W10sIm5iZiI6MTUzMzg5MTUzOCwicmVmcmVzaFRpbWVvdXQiOjE1MzM4OTIxMzgsImlzcyI6InNlc3Npb24tc2VydmljZSIsInNlc3Npb25JZCI6IjFiYjViZjE0LTk5ZTAtNDBmNS1hNDA5LTdkM2YwMTBhODU1ZCIsImV4cCI6MTUzNjQ4MzUzOCwiaWF0IjoxNTMzODkxNTM4LCJlbWFpbCI6ImNvbGxpbnNAYnJhaW5jb3Jwb3JhdGlvbi5jb20iLCJqdGkiOiIxYmI1YmYxNC05OWUwLTQwZjUtYTQwOS03ZDNmMDEwYTg1NWQifQ.LwKC03LqHtyct_yGrUFB_z5ewTidS-lLmAYeWnYaJ57274Bck-7J2A3FTIrKbmB23fqDAMToaGoDdcT72muB39qdM_LLg13YZMoE_oJT59iG6L3m7CFgYvkLs_93vGF5fRa78iAnrWw8-ok2OvcvxLPn9e4nZH4K4-ZnIjDh1933Ee1qeyZb7kNKYsfuU4fpqL2qJb4uYGYfJ8ctPgmXD7CYNlq15xQ8P9uuhv2O0J02ZdxWV4gHdbcJbJHSAbz9CU8uTQkgekVkuw8yE-m42hGBRkVV9z8KcNR4M4fws6g7HYuAljJJjrxUhZxhB_pNP89f85EHObKYFjtbEwfhEQ; ajs_group_id=null; ajs_anonymous_id=%22f4484c35-dcd5-4462-83c1-8d45a5573f3c%22; atlassian.xsrf.token=BN4G-6MNW-Z3B0-BR4S_93200a68af113fc61ba86bdc9028ea49263fe7b0_lin; AJS.conglomerate.cookie="|hipchat.inapp.links.first.clicked.collins=false"' -H 'Connection: keep-alive'          (cd d))))
-    (cd "/ssh:brain@sandbox:/");;(format "/%s:%s@%s:/" brain-method brain-user brain-host))
-    (apply orig-fun args)))
-
+           (cd d))))
+    (progn
+      (cd "/ssh:brain@sandbox:/")
+      (apply orig-fun args))))
 
 (defun wrap-python-shell-run (orig-fun &rest args)
   "Send strings to remote interpreter."
@@ -70,7 +77,10 @@
                 (tramp-dissect-file-name test)
               (error (format "%s/%s"
                              brain-repo-dir
-                             (substring test (string-match "shining_software.*" test))))))
+                             (concat "shining_software/"
+                                     (substring test (+ (string-match "shining_software.*" test)
+                                                        (length "shining_software/src/")
+                                                        )))))))
           tests))
 
 
@@ -103,7 +113,7 @@
          (d (file-name-directory (buffer-file-name))))
     (if (stringp (car tramp-structs))
         (progn
-          (cd (format "/%s:%s@%s:~" brain-method brain-user brain-host brain-repo-dir))
+          (cd (format "/%s:%s@%s:~" brain-method brain-user brain-host))
           (apply 'pytest-run-patched tests args)
           (cd d))
       (progn
@@ -130,31 +140,30 @@
 
 (defun brainos-setup-wrappers (symbol new-val op where)
   (if new-val
-      (do (advice-add 'run-python :around #'wrap-python-shell-run)
-          (advice-add 'python-shell-send-string :around #'wrap-python-shell-send-string)
-          (advice-add 'pytest-run :around #'wrap-pytest-run))
-    (do (advice-remove 'run-python)
-        (advice-remove 'python-shell-send-string)
-        (advice-remove 'pytest-run))))
+      (progn
+        (message "brainos: adding python wrappers")
+        (advice-add 'run-python :around #'wrap-python-shell-run)
+        (advice-add 'python-shell-send-string :around #'wrap-python-shell-send-string)
+        (advice-add 'pytest-run :around #'wrap-pytest-run))
+    (progn
+      (message "brainos: removing python wrappers")
+      (advice-remove 'run-python #'wrap-python-shell-run)
+      (advice-remove 'python-shell-send-string #'wrap-python-shell-send-string)
+      (advice-remove 'pytest-run #'wrap-pytest-run))))
+
+
+(defun wrap-pytest-find-test-runner-in-dir-named (_ dn runner)
+  (let ((fn (expand-file-name runner dn))
+        (nxt-dn (file-name-directory (directory-file-name dn))))
+    (cond ((file-regular-p fn) fn)
+          ((equal dn nxt-dn) nil)
+          (t (pytest-find-test-runner-in-dir-named nxt-dn runner)))))
 
 
 (defun brainos-setup ()
   (global-set-key [?\C-\'] #'python-execute-file-in-remote)
-  (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers))
-
-
-;; Patch pytest.el to work on remote host
-(eval-after-load "pytest"
-  ;; Patch to stop when a fixed-point is reached, to avoid
-  ;; infinite loops when reading TRAMP filenames.
-  (defun pytest-find-test-runner-in-dir-named (dn runner)
-    (let ((fn (expand-file-name runner dn))
-          (nxt-dn (file-name-directory (directory-file-name dn))))
-      (cond ((file-regular-p fn) fn)
-            ((equal dn nxt-dn) nil)
-            (t (pytest-find-test-runner-in-dir-named nxt-dn runner)))))
-
+  (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named)
+  (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers)
   )
-
 
 ;;; brainos.el ends here

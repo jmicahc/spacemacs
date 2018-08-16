@@ -1,7 +1,7 @@
 ;;; tramp-patch.el --- a simple package                     -*- lexical-binding: t; -*-
 
 ;; Author: John Collins <collins@braincorp.com>
-;; Keywords: lisp
+;; Keywords: l isp
 ;; Version: 0.0.1
 
 ;; This program is free software; you can redistribute it and/or modify
