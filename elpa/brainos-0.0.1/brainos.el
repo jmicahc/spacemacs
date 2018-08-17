@@ -121,21 +121,23 @@
         (apply 'pytest-run-patched tests args)))))
 
 
-(defun python-execute-file-in-remote (&optional args)
+(defun wrap-spacemaces/python-execute-file (orig-fun &optional args)
   "Execute a python script in a shell."
   ;; set compile command to buffer-file-name
   ;; universal argument put compile buffer in comint mode
-  (let* ((universal-argument t)
-         (filename (buffer-file-name))
-         (d (file-name-directory filename))
-         (buff (current-buffer))
-         (repo-path (substring filename (string-match "shining_software*"
-                                                      filename)))
-         (compile-command (format "python %s %s" repo-path (concat args))))
-    (cd (format "/%s:%s@%s:/opt"
-                brain-method brain-user brain-host))
-    (compile compile-command t)
-    (cd d)))
+  (if brainos-enable-sandbox-support
+      (let* ((universal-argument t)
+             (filename (buffer-file-name))
+             (d (file-name-directory filename))
+             (buff (current-buffer))
+             (repo-path (substring filename (+ (string-match "shining_software/src.*" filename)
+                                               (length "shining_software/src/"))))
+             (compile-command (format "python %s %s" repo-path (concat args))))
+        (cd (format "/%s:%s@%s:/opt/shining_software/"
+                    brain-method brain-user brain-host))
+        (compile compile-command t)
+        (cd d))
+    (apply oirg-fun args)))
 
 
 (defun brainos-setup-wrappers (symbol new-val op where)
@@ -162,6 +164,7 @@
 
 (defun brainos-setup ()
   (global-set-key [?\C-\'] #'python-execute-file-in-remote)
+  (advice-add 'spacemacs/python-execute-file :around #'wrap-spacemaces/python-execute-file)
   (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named)
   (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers)
   )
