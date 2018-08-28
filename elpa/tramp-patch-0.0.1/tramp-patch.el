@@ -280,6 +280,7 @@ connection if a previous connection has died for some reason."
 ;;;###autoload
 (defun tramp-patch-setup ()
     (advice-add 'tramp-maybe-open-connection
-                :around #'patch-tramp-maybe-open-connection))
+                :around #'patch-tramp-maybe-open-connection)
+    )
 
 ;;; tramp-patch.el ends here

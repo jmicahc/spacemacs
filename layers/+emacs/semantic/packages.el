@@ -19,8 +19,9 @@
 (defun semantic/init-semantic ()
   (use-package semantic
     :defer t
-    :config (add-to-list 'semantic-default-submodes
-                         'global-semantic-idle-summary-mode)))
+    ;; :config (add-to-list 'semantic-default-submodes
+    ;;                      'global-semantic-idle-summary-mode)
+    ))
 
 (defun semantic/init-srefactor ()
   (use-package srefactor :defer t))
