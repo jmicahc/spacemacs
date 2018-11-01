@@ -45,30 +45,37 @@
 
 
 (defun wrap-python-shell-send-string (orig-fun &rest args)
-  (if-let ((f (buffer-file-name)))
-      (condition-case nil
-          (progn (tramp-dissect-file-name f)
-                 (apply orig-fun args))
-        (error
-         (let ((d (file-name-directory f)))
-           (cd (format "/%s:%s@%s:/" brain-method brain-user brain-host))
-           (apply orig-fun args)
-           (cd d))))
-    (progn
-      (cd "/ssh:brain@sandbox:/")
-      (apply orig-fun args))))
+  (if brainos-enable-sandbox-support
+      (if-let ((f (buffer-file-name)))
+          (condition-case nil
+              (progn (tramp-dissect-file-name f)
+                     (apply orig-fun args))
+            (error
+             (let ((d (file-name-directory f)))
+               (cd (format "/%s:%s@%s:/" brain-method brain-user brain-host))
+               (apply orig-fun args)
+               (cd d))))
+        (progn
+          (cd "/ssh:brain@sandbox:/")
+          (apply orig-fun args)))
+    (apply orig-fun args)))
+
 
 (defun wrap-python-shell-run (orig-fun &rest args)
   "Send strings to remote interpreter."
-  (let ((d (file-name-directory (buffer-file-name))))
-    (condition-case nil
-        (progn
-          (tramp-dissect-file-name d)
-          (apply orig-fun args))
-      (error (progn
-               (cd (format "/%s:%s@%s:/" brain-method brain-user brain-host))
-               (apply orig-fun args)
-               (cd d))))))
+  (if brainos-enable-sandbox-support
+      (let ((d (file-name-directory (buffer-file-name))))
+        (progn (setq python-shell-interpreter-args "--simple-prompt -i") 
+               (setq python-shell-interpreter "ipython") 
+               (condition-case nil
+                  (progn
+                    (tramp-dissect-file-name d)
+                    (apply orig-fun args))
+                 (error (progn
+                          (cd (format "/%s:%s@%s:/" brain-method brain-user brain-host))
+                          (apply orig-fun args)
+                          (cd d))))))
+    (apply orig-fun args)))
 
 
 (defun pytest-parse-tramp-file-name-structure (tests)
@@ -107,18 +114,20 @@
 
 (defun wrap-pytest-run (orig-fun &optional tramp-names &rest args)
   "Run pytests in remote environment."
-  (let* ((tramp-structs (pytest-parse-tramp-file-name-structure
-                         (if (listp tramp-names) tramp-names (list tramp-names))))
-         (tests (mapcar (lambda (s) (if (stringp s) s (tramp-file-name-localname s))) tramp-structs))
-         (d (file-name-directory (buffer-file-name))))
-    (if (stringp (car tramp-structs))
-        (progn
-          (cd (format "/%s:%s@%s:~" brain-method brain-user brain-host))
-          (apply 'pytest-run-patched tests args)
-          (cd d))
-      (progn
-        (cd d)
-        (apply 'pytest-run-patched tests args)))))
+  (if brainos-enable-sandbox-support
+      (let* ((tramp-structs (pytest-parse-tramp-file-name-structure
+                             (if (listp tramp-names) tramp-names (list tramp-names))))
+             (tests (mapcar (lambda (s) (if (stringp s) s (tramp-file-name-localname s))) tramp-structs))
+             (d (file-name-directory (buffer-file-name))))
+        (if (stringp (car tramp-structs))
+            (progn
+              (cd (format "/%s:%s@%s:~" brain-method brain-user brain-host))
+              (apply 'pytest-run-patched tests args)
+              (cd d))
+          (progn
+            (cd d)
+            (apply 'pytest-run-patched tests args))))
+    (apply orig-fun tramp-names args)))
 
 
 (defun wrap-spacemaces/python-execute-file (orig-fun &optional args)
@@ -138,6 +147,14 @@
         (compile compile-command t)
         (cd d))
     (apply oirg-fun args)))
+
+
+(defun wrap-spacemacs//python-setup-shell (orig-fun &rest args)
+  (if brainos-enable-sandbox-support
+      (progn (setq python-shell-interpreter-args "-i") 
+             (setq python-shell-interpreter "python")
+             )
+    (apply orig-fun args)))
 
 
 (defun brainos-setup-wrappers (symbol new-val op where)
@@ -165,6 +182,7 @@
 (defun brainos-setup ()
   (global-set-key [?\C-\'] #'python-execute-file-in-remote)
   (advice-add 'spacemacs/python-execute-file :around #'wrap-spacemaces/python-execute-file)
+  (advice-add 'spacemacs//python-setup-shell :around #'wrap-spacemacs//python-setup-shell)
   (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named)
   (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers)
   )
