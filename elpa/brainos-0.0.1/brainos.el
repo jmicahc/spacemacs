@@ -65,7 +65,51 @@
              (concat "--shining-repo=" shining-repo-dir)
              (when args (split-string args " "))))))
 
+(define-key evil-normal-state-map (kbd "P") 'brain-patch);;;###autoload
+(defun brain-patch (args)
+  (interactive
+   (cond ((equal current-prefix-arg nil) (list nil))
+         (t (list (read-string "args: ")))))
+  (save-excursion
+    (let ((rootdir (helm-ag--project-root)))
+      ;; Save current python buffers.
+      (mapc (lambda (buff)
+              (when (string-match-p ".*.py" (buffer-name buff))
+                (with-current-buffer buff
+                  (buffer-list))))
+            (buffer-list))
+      (apply 'start-process
+             "brain-patch"
+             "*brain-patch*"
+             "brain-patch"
+             (concat "--shining-repo=" shining-repo-dir)
+             (when args (split-string args " "))))))
+
 (define-key evil-normal-state-map (kbd "P") 'brain-patch)
+
+;;;###autoload
+(defun brain-patch (args)
+  (interactive
+   (cond ((equal current-prefix-arg nil) (list nil))
+         (t (list (read-string "args: ")))))
+  (save-excursion
+    (let ((rootdir (helm-ag--project-root)))
+      ;; Save current python buffers.
+      (mapc (lambda (buff)
+              (when (string-match-p ".*.py" (buffer-name buff))
+                (with-current-buffer buff
+                  (buffer-list))))
+            (buffer-list))
+      (apply 'start-process
+             "brain-patch"
+             "*brain-patch*"
+             "brain-patch"
+             (concat "--shining-repo=" shining-repo-dir)
+             (when args (split-string args " "))))))
+
+(define-key evil-normal-state-map (kbd "P") 'brain-patch)
+
+
 
 
 (defun wrap-python-shell-send-string (orig-fun &rest args)
