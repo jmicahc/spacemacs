@@ -37,13 +37,31 @@
 
 (defvar brainos-enable-sandbox-support nil)
 
+(defconst run-python-preamble "
+import os
+import json
+from shining_software.roc.roc_client import RocClient
+
+def create_roc_client(username):
+    home = os.path.expanduser(\"~\")
+    credentials = os.path.join(home, \"rocc.json\")
+    with open(credentials) as f:
+        roc_cred = json.load(f)
+    return RocClient(url=roc_cred[\"RocUrl\"], username=username, token=roc_cred[\"Token\"])
+
+roc_client = create_roc_client('collins')
+")
+
+
 (defun tramp-file-namep (filename)
   (condition-case nil
       (when (tramp-dissect-file-name filename)
         t)
     (error nil)))
 
+(require 'evil)
 (require 'tramp)
+(require 'projectile)
 
 ;;;###autoload
 (defun brain-patch (args)
@@ -51,65 +69,71 @@
    (cond ((equal current-prefix-arg nil) (list nil))
          (t (list (read-string "args: ")))))
   (save-excursion
-    (let ((rootdir (helm-ag--project-root)))
+    (let ((rootdir (projectile-project-root)))
       ;; Save current python buffers.
       (mapc (lambda (buff)
               (when (string-match-p ".*.py" (buffer-name buff))
                 (with-current-buffer buff
-                  (buffer-list))))
+                  (save-buffer))))
             (buffer-list))
       (apply 'start-process
              "brain-patch"
              "*brain-patch*"
              "brain-patch"
              (concat "--shining-repo=" shining-repo-dir)
-             (when args (split-string args " "))))))
+             (when args (split-string args " ")))
+      (message "Started brain-patch Process"))))
 
 (define-key evil-normal-state-map (kbd "P") 'brain-patch);;;###autoload
-(defun brain-patch (args)
-  (interactive
-   (cond ((equal current-prefix-arg nil) (list nil))
-         (t (list (read-string "args: ")))))
-  (save-excursion
-    (let ((rootdir (helm-ag--project-root)))
-      ;; Save current python buffers.
-      (mapc (lambda (buff)
-              (when (string-match-p ".*.py" (buffer-name buff))
-                (with-current-buffer buff
-                  (buffer-list))))
-            (buffer-list))
-      (apply 'start-process
-             "brain-patch"
-             "*brain-patch*"
-             "brain-patch"
-             (concat "--shining-repo=" shining-repo-dir)
-             (when args (split-string args " "))))))
 
-(define-key evil-normal-state-map (kbd "P") 'brain-patch)
 
 ;;;###autoload
-(defun brain-patch (args)
-  (interactive
-   (cond ((equal current-prefix-arg nil) (list nil))
-         (t (list (read-string "args: ")))))
+(defun brain-rocc-dev-connect ()
+  (interactive)
+  (let ((password (secret-lookup "roc")))
+    (shell-command (concat (format "echo %s" password)
+                           " | rocc -u https://api.dev.roc.braincorp.com login -u collins -d 1000000"
+                           "; scp ~/rocc.json brain@sandbox:~"))))
+
+
+;;;###autoload
+(defun brain-rocc-prod-connect ()
+  (interactive)
+  (let ((password (secret-lookup "roc")))
+    (shell-command (concat (format "echo %s" password)
+                                 "| rocc -u https://api.prod.roc.braincorp.com login -u collins -d 1000000"
+                                 "; scp ~/rocc.json brain@sandbox:~"))))
+
+
+;;;###autoload
+(defun brain-sandbox-send (cmd)
   (save-excursion
-    (let ((rootdir (helm-ag--project-root)))
-      ;; Save current python buffers.
-      (mapc (lambda (buff)
-              (when (string-match-p ".*.py" (buffer-name buff))
-                (with-current-buffer buff
-                  (buffer-list))))
-            (buffer-list))
-      (apply 'start-process
-             "brain-patch"
-             "*brain-patch*"
-             "brain-patch"
-             (concat "--shining-repo=" shining-repo-dir)
-             (when args (split-string args " "))))))
-
-(define-key evil-normal-state-map (kbd "P") 'brain-patch)
+    (let ((current-directory (file-name-directory (buffer-file-name))))
+      (cd (format "/ssh:%s@sandbox:~" brain-user))
+      (async-shell-command cmd)
+      (cd current-directory))))
 
 
+;;;###autoload
+(defun brain-sandbox-dev-roc-client ()
+  (interactive)
+  (brain-rocc-dev-connect)
+  (python-shell-send-string run-python-preamble))
+
+
+;;;###autoload
+(defun brain-sandbox-prod-roc-client ()
+  (interactive)
+  (brain-rocc-prod-connect)
+  (python-shell-send-string run-python-preamble))
+
+
+;;;###autoload
+(defun brain-sandbox-setup ()
+  (interactive)
+  (brain-sandbox-send (concat "sudo pip install --upgrade pip; "
+                              "sudo pip install ipython pdbpp; "
+                              "echo 'source /opt/shining_software/use_repo.sh' >> ~/.bashrc;")))
 
 
 (defun wrap-python-shell-send-string (orig-fun &rest args)
@@ -122,6 +146,30 @@
              (let ((d (file-name-directory f)))
                (cd (format "/%s:%s@%s:/" brain-method brain-user brain-host))
                (apply orig-fun args)
+               (defun brain-patch (args)
+                 (interactive
+                  (cond ((equal current-prefix-arg nil) (list nil))
+                        (t (list (read-string "args: ")))))
+                 (save-excursion
+                   (let ((rootdir (projectile-project-root)))
+                     ;; Save current python buffers.
+                     (mapc (lambda (buff)
+                             (when (string-match-p ".*.py" (buffer-name buff))
+                               (with-current-buffer buff
+                                 (buffer-list))))
+                           (buffer-list))
+                     (apply 'start-process
+                            "brain-patch"
+                            "*brain-patch*"
+                            "brain-patch"
+                            (concat "--shining-repo=" shining-repo-dir)
+                            (when args (split-string args " ")))
+                     (message "Started brain-patch Process"))))
+
+
+               (define-key evil-normal-state-map (kbd "P") 'brain-patch);;;###autoload
+
+
                (cd d))))
         (progn
           (cd "/ssh:brain@sandbox:/")
@@ -144,7 +192,6 @@
                           (apply orig-fun args)
                           (cd d))))))
     (apply orig-fun args)))
-
 
 (defun pytest-parse-tramp-file-name-structure (tests)
   (mapcar (lambda (test)
