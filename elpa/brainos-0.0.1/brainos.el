@@ -133,7 +133,8 @@ roc_client = create_roc_client('collins')
   (interactive)
   (brain-sandbox-send (concat "sudo pip install --upgrade pip; "
                               "sudo pip install ipython pdbpp; "
-                              "echo 'source /opt/shining_software/use_repo.sh' >> ~/.bashrc;")))
+                              "echo 'source /opt/shining_software/use_repo.sh' >> ~/.bashrc; "
+                              "cd ~; git clone https://github.com/jparise/python-reloader; cd python-reloader; sudo pip install .")))
 
 
 (defun wrap-python-shell-send-string (orig-fun &rest args)
