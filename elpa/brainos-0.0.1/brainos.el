@@ -24,6 +24,9 @@
 ;;; Code:
 
 (provide 'brainos)
+(require 'evil)
+(require 'tramp)
+(require 'projectile)
 
 (defconst brain-method "ssh")
 
@@ -62,10 +65,6 @@ roc_client = create_roc_client('collins')
       (when (tramp-dissect-file-name filename)
         t)
     (error nil)))
-
-(require 'evil)
-(require 'tramp)
-(require 'projectile)
 
 ;;;###autoload
 (defun brain-patch (args)
@@ -344,5 +343,49 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
   (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named)
   (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers)
   )
+
+
+(require 'request)
+(require 'json)
+
+
+(defun brain-list-sesisons ()
+  (let* ((auth-data (json-read-file "~/rocc.json"))
+         (token (assoc-default 'Token auth-data))
+         (header (format "Bearer %s" token)))
+    (request "https://api.dev.roc.braincorp.com/v0/sessions"
+             :parser 'json-read
+             :headers (cons (cons "Authorization" header) nil)
+             :success (cl-function (lambda (&key data &allow-other-keys)
+                                     (message "I sent: %S" (aref data 0))))
+             ;; :error (cl-function (lambda (&key response &allow-other-keys)
+             ;;                       (message "hello")
+             ;;                       (message "World")
+             ;;                       (message response)))
+             )
+    )
+
+  )
+
+(parse-time-string "0001-01-01:00:00:00")
+(equal (parse-iso8601-time-string "2011-09-02T05:29:26-07:00") 
+       (parse-iso8601-time-string "2011-09-02T05:29:26-07:00"))
+
+(decode-time "2019-03-10:05:37:00" )
+(parse-time-string "2011-09-02T05:29:26-07:00")
+
+(decode-time "2019-03-10T05:37:00Z")
+
+(parse-time-string)
+
+(request
+ "http://httpbin.org/get"
+ :params '(("key" . "value") ("key2" . "value2"))
+ :parser 'json-read
+ :success (cl-function
+           (lambda (&key data &allow-other-keys)
+             (message "I sent: %S" (assoc-default 'args data)))))
+
+(brain-list-sessions)
 
 ;;; brainos.el ends here
