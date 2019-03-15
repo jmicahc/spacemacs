@@ -36,7 +36,8 @@
 
 (defconst brain-repo-dir "/opt")
 
-(defconst shining-repo-dir "/home/parallels/Workspace/shining_software")
+(defcustom shining-repo-dir "/home/parallels/Workspace/shining_software"
+  "Shining Software repository location")
 
 (defvar brainos-enable-sandbox-support nil)
 
@@ -87,9 +88,27 @@ roc_client = create_roc_client('collins')
              (when args (split-string args " ")))
       (message "Started brain-patch Process"))))
 
-
 (define-key evil-normal-state-map (kbd "P") 'brain-patch);;;###autoload
 
+;; ## Git
+
+;;;###autoload
+(defun brain-update-submodules ()
+  (interactive)
+  (async-shell-command "git submodule update --recursive --init"))
+
+(define-key evil-normal-state-map (kbd ",bgu") 'brain-update-submodules)
+
+;; ## Replays
+
+;;;###autoload
+(defun brain-play-replay ()
+  (interactive)
+  (start-process "brain-player" "*brain-player*" "brain-player" (read-string "telemetry-id: ")))
+
+(define-key evil-normal-state-map (kbd ",br") 'brain-play-replay)
+
+;; ## Roc
 
 ;;;###autoload
 (defun brain-rocc-dev-connect ()
@@ -138,11 +157,10 @@ roc_client = create_roc_client('collins')
   (brain-sandbox-send (concat "sudo pip install --upgrade pip; "
                               "sudo pip install ipython pdbpp; "
                               "echo 'source /opt/shining_software/use_repo.sh' >> ~/.bashrc; "
-                              "cd ~; git clone https://github.com/jparise/python-reloader; cd python-reloader; sudo pip install .",
+                              "cd ~; git clone https://github.com/jparise/python-reloader; cd python-reloader; sudo pip install ."
                               "sudo apt install silversearcher-ag")))
 
-(setq brain-python-last-region "")
-
+(define-key evil-normal-state-map (kbd ",bss") 'brain-sandbox-setup)
 
 ;;;###autoload
 (defun brain-python-send-region (start end &optional send-main msg)
@@ -217,6 +235,33 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
                      (apply orig-fun args)
                      (cd d))))))
     (apply orig-fun args)))
+
+
+(defun brain-sandbox-path ()
+  (let ((project-rel-path (spacemacs/projectile-copy-file-path))
+        (sandbox-abs-path (concat "/opt/shining_software/"
+                                  (replace-regexp-in-string "src/" "" project-rel-path))))
+    (if (tramp-file-namep filename)
+        (let ((tramp-stuct (tramp-dissect-file-name filename)))
+          (foramt "/%s:%s@%s|%s@%s#%s:%s"
+                  (tramp-file-name-method tramp-struct)
+                  (tramp-file-name-user tramp-struct)
+                  (tramp-file-name-host tramp-struct)
+                  (or (tramp-file-name-port tramp-struct) "22")
+                  brain-user
+                  brain-host
+                  sandbox-abs-path))
+      (format "/%s:%s@%s:%s" brain-method brain-user brain-host))))
+
+
+(defun brain-shining-project-p ()
+  "Robust way to tell if we're in a shining_software project"
+  (let ((project-vcs (projectile-project-vcs))
+        (project-root (projectile-project-root)))
+    (when (equal "git" project-vcs)
+      (let ((git-url (shell-command-to-string
+                      (format "git -C %s remote.origin.url" project-root))))
+        (string-match-p "braincorp/shining_software" git-url)))))
 
 
 (defun pytest-parse-tramp-file-name-structure (tests)
@@ -345,47 +390,47 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
   )
 
 
-(require 'request)
-(require 'json)
+;;;###autoload
+(defun brain-open-project ()
+  (let ((filepath (spacemacs/projectile-copy-file-path)))
+    (projectile-switch-project-by-name (projectile-get-project-directories))
+    (find-file filepath)))
+
+(setq temp (projectile-switch-project))
 
 
-(defun brain-list-sesisons ()
-  (let* ((auth-data (json-read-file "~/rocc.json"))
-         (token (assoc-default 'Token auth-data))
-         (header (format "Bearer %s" token)))
-    (request "https://api.dev.roc.braincorp.com/v0/sessions"
-             :parser 'json-read
-             :headers (cons (cons "Authorization" header) nil)
-             :success (cl-function (lambda (&key data &allow-other-keys)
-                                     (message "I sent: %S" (aref data 0))))
-             ;; :error (cl-function (lambda (&key response &allow-other-keys)
-             ;;                       (message "hello")
-             ;;                       (message "World")
-             ;;                       (message response)))
-             )
-    )
+;;;###autoload
+(defun brain-open-in-project (&optional arg)
+  "Switch to a project we have visited before.
+Invokes the command referenced by `projectile-switch-project-action' on switch.
+With a prefix ARG invokes `projectile-commander' instead of
+`projectile-switch-project-action.'"
+  (interactive "P")
+  (let ((filepath (spacemacs/projectile-copy-file-path))
+        (projects (projectile-relevant-known-projects))
+        (projectile-require-project-root nil))
+    (if projects
+        (projectile-completing-read
+         "Switch to project: " projects
+         :action (lambda (project)
+                   (message (concat project filepath))
+                   (find-file (concat project filepath))))
+      (user-error "There are no known projects"))))
 
-  )
+(define-key evil-normal-state-map (kbd ",bpo") 'brain-open-in-project)
 
-(parse-time-string "0001-01-01:00:00:00")
-(equal (parse-iso8601-time-string "2011-09-02T05:29:26-07:00") 
-       (parse-iso8601-time-string "2011-09-02T05:29:26-07:00"))
 
-(decode-time "2019-03-10:05:37:00" )
-(parse-time-string "2011-09-02T05:29:26-07:00")
+;;;###autoload
+(defun brain-launch-python ()
+  (interactive)
+  (start-process "Python" "*Python*" "ipython"))
 
-(decode-time "2019-03-10T05:37:00Z")
 
-(parse-time-string)
+;;;###autoload
+(defun brain-build-sandbox ()
+  (interactive)
+  (async-shell-command "ssh brain@sandbox /opt/shining_software/build.sh --big"
+                       "Build Sandbox"))
 
-(request
- "http://httpbin.org/get"
- :params '(("key" . "value") ("key2" . "value2"))
- :parser 'json-read
- :success (cl-function
-           (lambda (&key data &allow-other-keys)
-             (message "I sent: %S" (assoc-default 'args data)))))
-
-(brain-list-sessions)
-
+(define-key evil-normal-state-map (kbd ",bbs") 'brain-build-sandbox)
 ;;; brainos.el ends here
