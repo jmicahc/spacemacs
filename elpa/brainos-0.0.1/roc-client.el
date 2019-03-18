@@ -64,21 +64,15 @@
 
 
 (defun rocc-session-to-login (username session)
-  (let* ((accessPieces (split-string (assoc-default 'accessService session) ":"))
-         (sshPort (cadr accessPieces))
-         (accessPort (assoc-default 'accessPort session))
-         (accessHost (car accessPieces)))
+  (let* ((access-pieces (split-string (assoc-default 'accessService session) ":"))
+         (ssh-port (cadr access-pieces))
+         (access-port (assoc-default 'accessPort session))
+         (access-host (car access-pieces)))
     (format "ssh -p %s '%s,%s@%s'"
-            sshPort
+            ssh-port
             username
-            accessPort
-            accessHost)))
-
-(defun rocc-session-to-remote (username session)
-  (let* ((accessPieces (split-string (assoc-default 'accessService session) ":"))
-         (accessHost (car accessPieces))
-         (accessPort (assoc-default 'accessPort session)))
-    (format "'%s,%s@%s'")))
+            access-port
+            access-host)))
 
 ;; (setq session (car (rocc-sessions-list)))
 ;; (async-shell-command (rocc-session-to-login "collins" session))
@@ -170,6 +164,7 @@
 (defun rocc-assists-list (&rest params)
   (request-response-data (rocc-request "/v1/assists" params)))
 
+
 (defun rocc-assists-get (assist-id &rest params)
   (request-response-data (rocc-request (format "/v1/assists/%s" assist-id) params)))
 
@@ -232,7 +227,7 @@
                    (format "*%s:%s*" device-type serial-number)
                    "gnome-terminal"
                    "-e"
-                   (format "%s" (rocc-session-to-login roc-username session)))))
+                   (rocc-session-to-login roc-username session))))
 
 
 (defun rocc-connections-run-login ()
@@ -308,22 +303,23 @@
                         :candidates helm-candidates))
          (params nil)
          (parameters-string ""))
-    (while (< (length params) (length helm-candidates))
-      (let* ((param (helm :sources (list helm-source)
-                          :history 'my-history))
-             (value (json-read-from-string
-                     (read-string (format "%s%s=:" parameters-string param)))))
-        (setq parameters-string (concat parameters-string (format "%s=%s, " param value)))
-        (setq params (cons (list* param value) params))))
+    (helm :sources (list helm-source)
+          :history 'my-history)
+    ;; (while (< (length params) (length helm-candidates))
+    ;;   (let* ((param (helm :sources (list helm-source)
+    ;;                       :history 'my-history))
+    ;;          (value (json-read-from-string
+    ;;                  (read-string (format "%s%s=:" parameters-string param)))))
+    ;;     (setq parameters-string (concat parameters-string (format "%s=%s, " param value)))
+    ;;     (setq params (cons (list* param value) params))))
     params))
 
 
 ;;;###autoload
 (defun rocc-reflect ()
   (interactive)
-  (let ((path (make-symbol (read-string "API endpoint: ")))
-        (operation (make-symbol (read-string "Operation (default: get): " "" t "get"))))
-    (message path operation)
+  (let ((path (intern (read-string "API endpoint: ")))
+        (operation (intern (read-string "Operation (default: get): " "" t "get"))))
     (rocc-helm-complete-parameters swagger-data path operation)))
 
 (define-key evil-normal-state-map (kbd ",bf") 'rocc-reflect)

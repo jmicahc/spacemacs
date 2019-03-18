@@ -101,10 +101,15 @@ roc_client = create_roc_client('collins')
 
 ;; ## Replays
 
+(setq brain-play-replay-history '())
 ;;;###autoload
 (defun brain-play-replay ()
   (interactive)
-  (start-process "brain-player" "*brain-player*" "brain-player" (read-string "telemetry-id: ")))
+  (let ((telemetry-id (read-string "telemetry-id: " "" '(brain-play-replay-history . 0))))
+    (setq brain-play-replay-history (cons telemetry-id brain-play-replay-history))
+    (start-process "brain-player" "*brain-player*" "brain-player" telemetry-id)))
+
+brain-play-replay-history
 
 (define-key evil-normal-state-map (kbd ",br") 'brain-play-replay)
 
@@ -157,19 +162,48 @@ roc_client = create_roc_client('collins')
   (brain-sandbox-send (concat "sudo pip install --upgrade pip; "
                               "sudo pip install ipython pdbpp; "
                               "echo 'source /opt/shining_software/use_repo.sh' >> ~/.bashrc; "
-                              "cd ~; git clone https://github.com/jparise/python-reloader; cd python-reloader; sudo pip install ."
-                              "sudo apt install silversearcher-ag")))
+                              "cd ~; git clone https://github.com/jparise/python-reloader; cd python-reloader; sudo pip install .")))
 
 (define-key evil-normal-state-map (kbd ",bss") 'brain-sandbox-setup)
+
+(setq s "from __future__ import division
+
+import time
+import logging
+
+from enum import Enum
+from collections import namedtuple
+from brainos.utils.logger import logging_attempt_set_activity_name
+
+from brainos.utils.result import Result
+from brainos.utils.logger import get_configured_logger
+
+
+
+
+TickResult = namedtuple('TickResult', ['payload', 'cycledata'])")
+
+(message (replace-regexp-in-string "\n+" "\n" s))
 
 ;;;###autoload
 (defun brain-python-send-region (start end &optional send-main msg)
   (interactive
    (list (region-beginning) (region-end) current-prefix-arg t))
-  (let ((string (python-shell-buffer-substring start end (not send-main))))
+  (let ((string (string-trim
+                 (replace-regexp-in-string
+                  "\"\"\".*\"\"\"\"" ""
+                  (replace-regexp-in-string
+                   "\n+" "\n" (python-shell-buffer-substring start end (not send-main)))))))
     (setq brain-python-last-region string)
-    (python-shell-send-region start end send-main msg)))
+    ;;(python-shell-send-region start end send-main msg)
+    (let ((process (python-shell-get-process-or-error msg)))
+      (comint-send-string process "\\\n")
+      (comint-send-string process string)
+      (sleep-for 1)
+      (comint-send-string process "\n\n"))))
 
+(string-trim "\n\nabc\n\n")
+(python-shell-internal-send-string "")
 
 ;;;###autoload
 (defun brain-python-send-last-region ()
@@ -196,6 +230,7 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
 " sym sym sym sym))
     (python-shell-send-buffer)
     (message (concat "reloaded " sym))))
+
 
 ;;;###autoload
 (define-key evil-normal-state-map (kbd ",rl") 'python-reload-symbol-at-point)
@@ -396,8 +431,6 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
     (projectile-switch-project-by-name (projectile-get-project-directories))
     (find-file filepath)))
 
-(setq temp (projectile-switch-project))
-
 
 ;;;###autoload
 (defun brain-open-in-project (&optional arg)
@@ -433,4 +466,6 @@ With a prefix ARG invokes `projectile-commander' instead of
                        "Build Sandbox"))
 
 (define-key evil-normal-state-map (kbd ",bbs") 'brain-build-sandbox)
+
+(define-key evil-normal-state-map (kbd "'") 'async-shell-command)
 ;;; brainos.el ends here
