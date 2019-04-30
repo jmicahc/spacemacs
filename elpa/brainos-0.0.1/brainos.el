@@ -109,8 +109,6 @@ roc_client = create_roc_client('collins')
     (setq brain-play-replay-history (cons telemetry-id brain-play-replay-history))
     (start-process "brain-player" "*brain-player*" "brain-player" telemetry-id)))
 
-brain-play-replay-history
-
 (define-key evil-normal-state-map (kbd ",br") 'brain-play-replay)
 
 ;; ## Roc
@@ -166,25 +164,6 @@ brain-play-replay-history
 
 (define-key evil-normal-state-map (kbd ",bss") 'brain-sandbox-setup)
 
-(setq s "from __future__ import division
-
-import time
-import logging
-
-from enum import Enum
-from collections import namedtuple
-from brainos.utils.logger import logging_attempt_set_activity_name
-
-from brainos.utils.result import Result
-from brainos.utils.logger import get_configured_logger
-
-
-
-
-TickResult = namedtuple('TickResult', ['payload', 'cycledata'])")
-
-(message (replace-regexp-in-string "\n+" "\n" s))
-
 ;;;###autoload
 (defun brain-python-send-region (start end &optional send-main msg)
   (interactive
@@ -201,9 +180,6 @@ TickResult = namedtuple('TickResult', ['payload', 'cycledata'])")
       (comint-send-string process string)
       (sleep-for 1)
       (comint-send-string process "\n\n"))))
-
-(string-trim "\n\nabc\n\n")
-(python-shell-internal-send-string "")
 
 ;;;###autoload
 (defun brain-python-send-last-region ()
@@ -396,8 +372,8 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
   (if new-val
       (progn
         (message "brainos: adding python wrappers")
-        (advice-add 'run-python :around #'wrap-python-shell-run)
-        (advice-add 'python-shell-send-string :around #'wrap-python-shell-send-string)
+        (advice-add 'run-python :around #'wrap-python-shell-run) 
+        (advice-add 'python-shell-send-string :around #'wrap-python-shell-send-string) 
         (advice-add 'pytest-run :around #'wrap-pytest-run))
     (progn
       (message "brainos: removing python wrappers")
@@ -418,9 +394,9 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
 
 (defun brainos-setup ()
   (global-set-key [?\C-\'] #'python-execute-file-in-remote)
-  (advice-add 'spacemacs/python-execute-file :around #'wrap-spacemaces/python-execute-file)
-  (advice-add 'spacemacs//python-setup-shell :around #'wrap-spacemacs//python-setup-shell)
-  (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named)
+  (advice-add 'spacemacs/python-execute-file :around #'wrap-spacemaces/python-execute-file) 
+  (advice-add 'spacemacs//python-setup-shell :around #'wrap-spacemacs//python-setup-shell) 
+  (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named) 
   (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers)
   )
 
@@ -468,4 +444,5 @@ With a prefix ARG invokes `projectile-commander' instead of
 (define-key evil-normal-state-map (kbd ",bbs") 'brain-build-sandbox)
 
 (define-key evil-normal-state-map (kbd "'") 'async-shell-command)
+
 ;;; brainos.el ends here

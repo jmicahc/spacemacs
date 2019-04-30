@@ -33,6 +33,7 @@
 
 (defcustom roc-username "collins" "Username used to authenticate with ROC")
 
+;; ### Requests
 
 (defun rocc-request (arg params)
   (let* ((auth-data (json-read-file "~/rocc.json"))
@@ -45,9 +46,34 @@
              :sync t
              :headers (list (list* "Authorization" header)))))
 
+;; ### Utils
+
+
+(defun alist-put (alist key value)
+  (cond ((equal alist nil) (list (cons key value))
+         ((equal key (caar alist))
+          (cons (cons key value) (cdr alist)))
+         (t (cons (car alist) (alist-put (crd alist) key value))))))
+
+
+(defun with-pagination (roc-operation page-size &rest params)
+  (if-let (limit (assoc-default 'limit params))
+      (cond ((<= limit 0) nil)
+            ((> limit page-size)
+             (concatenate 'vector
+                          (apply roc-operation (alist-put params 'limit page-size))
+                          (apply with-pagination
+                                 roc-operation
+                                 page-size
+                                 (alist-put params
+                                            roc-operation
+                                            'limit (- limit page-size)
+                                            'offset (+ page-size (assoc-default 'offset params))))))
+            (t (apply roc-operation params)))
+    (apply roc-operation params)))
+
 
 ;; ### Login
-
 
 (defun rocc-login ())
 
@@ -74,8 +100,6 @@
             access-port
             access-host)))
 
-;; (setq session (car (rocc-sessions-list)))
-;; (async-shell-command (rocc-session-to-login "collins" session))
 
 (defun rocc-session-active-p (session)
   (< (time-to-seconds
@@ -102,6 +126,22 @@
 
 (defun rocc-devices-list (&rest params)
   (request-response-data (rocc-request "/v1/devices" params)))
+
+
+(defun get-customer-names (devs)
+    (->> devs
+         (mapcar (lambda (dev)
+                   (condition-case nil
+                       (->> dev
+                            (assoc-default 'config)
+                            json-read-from-string
+                            (assoc-default 'roc)
+                            (assoc-default 'reporting)
+                            (assoc-default 'customerName))
+                     (error nil))))
+         (seq-filter (lambda (customer-name)
+                       (and (not (equal customer-name nil))
+                            (not (string-match-p customer-name environments)))))))
 
 
 (defun rocc-devices-get (device-id &rest params)
@@ -144,12 +184,14 @@
 ;; ## Telemetry
 
 
-(defun rocc-telmetry-list (&rest params)
-  (request-response-data (rocc-request "/v0/telemetry" params)))
+(defun rocc-telemetry-list (&rest params)
+  (request-response-data (rocc-request "/v1/telemetry" params)))
 
 
-(defun rocc-telemtry-get (telemetry-id &rest params)
-  (request-response-data (rocc-request "/v0/telemetry/%s" telemetry-id)))
+(rocc-telemetry-list )
+
+(defun rocc-telemetry-get (telemetry-id &rest params)
+  (request-response-data (rocc-request (format "/v0/telemetry/%s" telemetry-id) params)))
 
 
 (defun rocc-telemetry-download (telemetry-id filename)
@@ -160,12 +202,31 @@
 
 ;; ## Assists
 
-
 (defun rocc-assists-list (&rest params)
   (request-response-data (rocc-request "/v1/assists" params)))
 
 
+;;;###autoload
+(defun rocc-assists-get-code (telemetry-id)
+  (interactive "sTelemetry Id: ")
+  (insert (assoc-default 'code
+                         (aref (request-response-data (rocc-request "/v1/assists" (list (cons 'telemetry_id  telemetry-id))))
+                               0))))
+
+
+
+;;;###autoload
+(defun rocc-assists-get-reason (telemetry-id)
+  (interactive "sTelemetry Id: ")
+  (insert (assoc-default 'reason
+                         (aref (request-response-data (rocc-request "/v1/assists" (list (cons 'telemetryId  telemetry-id)
+                                                                                        (cons 'limit 1))))
+                               0))))
+
+
+;;;###autoload
 (defun rocc-assists-get (assist-id &rest params)
+  (interactive "sAassist ID: ")
   (request-response-data (rocc-request (format "/v1/assists/%s" assist-id) params)))
 
 
@@ -323,5 +384,53 @@
     (rocc-helm-complete-parameters swagger-data path operation)))
 
 (define-key evil-normal-state-map (kbd ",bf") 'rocc-reflect)
+
+;; ## Interactive
+
+;; (defmacro def-roc-command (&rest plist)
+;;   (let* ((op (plist-get plist :op))
+;;          (handler (plist-get plist :handler))
+;;          (args (plist-get plist :options)))
+;;     (defun op ()
+;;       (interactive "...")
+;;       (helm :sources '...
+;;             :history '...))))
+;;
+;; (def-roc-command
+;;   :op rocc-assists-list
+;;   :handler rocc--assist-list
+;;   :args (apply-partially rocc-query-builder 'assists 'list))
+;;
+;; (def-roc-command
+;;   :op rocc-assists-get
+;;   :handler rocc--assits-get
+;;   :args (apply-partially rocc-query-builder 'assists 'get))
+;;
+;; (def-roc-command
+;;   :op rocc-events-list
+;;   :handler rocc--events-list
+;;   :args (apply-partially roc-query-builder 'events 'list))
+;;
+;; (def-roc-command
+;;   :op rocc-events-get
+;;   :handler rocc--events-get
+;;   :args (apply-partially roc-query-builder 'events 'get))
+
+
+
+(defun rocc-assists-list ()
+  (interactive)
+  (with-current-buffer "temp"
+    (let ((assists (rocc-assists-list))
+          (insert-assist (lambda (assist)
+                           (insert (string-join (mapcar (lambda (item)
+                                                          (cadr item))
+                                                        assist)
+                                                ", ")))))
+      (helm :sources (list helm-source)
+            :history 'my-history)
+      (insert (string-join (mapcar 'car (first assists)) ", "))
+      (mapcar 'insert-assist (cdr assists)))))
+
 
 ;;; roc-client.el ends here
