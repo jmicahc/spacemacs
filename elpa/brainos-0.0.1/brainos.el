@@ -207,6 +207,35 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
     (python-shell-send-buffer)
     (message (concat "reloaded " sym))))
 
+;;;###autoload
+(defun python-eval-kwargs ()
+  (interactive)
+  (let ((sym (python-info-current-symbol)))
+    (python-shell-send-string (format "locals().update(%s)" sym))))
+
+;;;###autoload
+(defun python-eval-function-args ()
+  (interactive)
+  (save-excursion
+    (let* ((function-sym (python-info-current-symbol))
+           (begin-args (progn (python-nav-forward-sexp) (+ (point) 1)))
+           (end-args (progn (python-nav-forward-sexp) (- (point) 1)))
+           (buffer-str (buffer-substring begin-args end-args)))
+      (message (format "sym: %s" function-sym))
+      (python-shell-send-string
+       (format "locals().update(inspect.getcallargs(%s, %s))"
+               function-sym
+               buffer-str)))))
+
+(defun python-insert-string (string)
+  (save-excursion 
+    (with-current-buffer (python-shell-get-buffer)
+      (insert string))))
+
+;;;###autoload
+(defun python-insert-region ()
+  (let ((region-string (buffer-substring (region-beginning) (region-end))))
+    (python-insert-string region-string)))
 
 ;;;###autoload
 (define-key evil-normal-state-map (kbd ",rl") 'python-reload-symbol-at-point)
@@ -442,7 +471,6 @@ With a prefix ARG invokes `projectile-commander' instead of
                        "Build Sandbox"))
 
 (define-key evil-normal-state-map (kbd ",bbs") 'brain-build-sandbox)
-
 (define-key evil-normal-state-map (kbd "'") 'async-shell-command)
 
 ;;; brainos.el ends here

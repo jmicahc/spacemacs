@@ -161,8 +161,8 @@
              :parser 'buffer-string
              :success (cl-function
                        (lambda (&key data &allow-other-keys)
+                         (print "data length: " (length data)) 
                          (f-write-text data 'utf-8 filename))))))
-
 
 ;; ## Routes
 
@@ -188,17 +188,16 @@
   (request-response-data (rocc-request "/v1/telemetry" params)))
 
 
-(rocc-telemetry-list )
-
 (defun rocc-telemetry-get (telemetry-id &rest params)
   (request-response-data (rocc-request (format "/v0/telemetry/%s" telemetry-id) params)))
 
-
-(defun rocc-telemetry-download (telemetry-id filename)
-  (let* ((telemetry (rocc-telemetry-get telemetry-id))
+;;;###autoload
+(defun rocc-telemetry-download (telemetry-id)
+  (interactive "STelemetry Id: ")
+  (let* ((filename (format "%s.tar.xz" telemetry-id))
+         (telemetry (rocc-telemetry-get telemetry-id))
          (blob-id (assoc-default 'blobId telemetry)))
     (rocc-blobs-download blob-id filename)))
-
 
 ;; ## Assists
 
@@ -386,7 +385,6 @@
 (define-key evil-normal-state-map (kbd ",bf") 'rocc-reflect)
 
 ;; ## Interactive
-
 ;; (defmacro def-roc-command (&rest plist)
 ;;   (let* ((op (plist-get plist :op))
 ;;          (handler (plist-get plist :handler))
@@ -412,25 +410,4 @@
 ;;   :args (apply-partially roc-query-builder 'events 'list))
 ;;
 ;; (def-roc-command
-;;   :op rocc-events-get
-;;   :handler rocc--events-get
-;;   :args (apply-partially roc-query-builder 'events 'get))
-
-
-
-(defun rocc-assists-list ()
-  (interactive)
-  (with-current-buffer "temp"
-    (let ((assists (rocc-assists-list))
-          (insert-assist (lambda (assist)
-                           (insert (string-join (mapcar (lambda (item)
-                                                          (cadr item))
-                                                        assist)
-                                                ", ")))))
-      (helm :sources (list helm-source)
-            :history 'my-history)
-      (insert (string-join (mapcar 'car (first assists)) ", "))
-      (mapcar 'insert-assist (cdr assists)))))
-
-
-;;; roc-client.el ends here
+;;   :op rocc-even

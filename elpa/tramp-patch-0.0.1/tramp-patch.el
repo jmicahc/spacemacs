@@ -249,7 +249,7 @@ connection if a previous connection has died for some reason."
 
 		    ;; Send the command.
 		    (tramp-message vec 3 "Sending command `%s'" command)
-		    (tramp-send-command vec (concat command " -t /bin/bash") t t)
+		    (tramp-send-command vec (concat command " -X -t /bin/bash") t t)
 		    (tramp-process-actions
 		     p vec
 		     (min
