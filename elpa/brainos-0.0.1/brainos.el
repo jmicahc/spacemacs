@@ -88,7 +88,6 @@ roc_client = create_roc_client('collins')
              (when args (split-string args " ")))
       (message "Started brain-patch Process"))))
 
-(define-key evil-normal-state-map (kbd "P") 'brain-patch);;;###autoload
 
 ;; ## Git
 
@@ -97,7 +96,6 @@ roc_client = create_roc_client('collins')
   (interactive)
   (async-shell-command "git submodule update --recursive --init"))
 
-(define-key evil-normal-state-map (kbd ",bgu") 'brain-update-submodules)
 
 ;; ## Replays
 
@@ -109,7 +107,6 @@ roc_client = create_roc_client('collins')
     (setq brain-play-replay-history (cons telemetry-id brain-play-replay-history))
     (start-process "brain-player" "*brain-player*" "brain-player" telemetry-id)))
 
-(define-key evil-normal-state-map (kbd ",br") 'brain-play-replay)
 
 ;; ## Roc
 
@@ -157,12 +154,10 @@ roc_client = create_roc_client('collins')
 ;;;###autoload
 (defun brain-sandbox-setup ()
   (interactive)
-  (brain-sandbox-send (concat "sudo pip install --upgrade pip; "
-                              "sudo pip install ipython pdbpp; "
+  (brain-sandbox-send (concat "sudo apt install -y ipython"
                               "echo 'source /opt/shining_software/use_repo.sh' >> ~/.bashrc; "
                               "cd ~; git clone https://github.com/jparise/python-reloader; cd python-reloader; sudo pip install .")))
 
-(define-key evil-normal-state-map (kbd ",bss") 'brain-sandbox-setup)
 
 ;;;###autoload
 (defun brain-python-send-region (start end &optional send-main msg)
@@ -185,10 +180,6 @@ roc_client = create_roc_client('collins')
 (defun brain-python-send-last-region ()
   (interactive)
   (python-shell-send-string brain-python-last-region))
-
-
-(define-key evil-normal-state-map (kbd ",sL") 'brain-python-send-region)
-(define-key evil-normal-state-map (kbd ",sl") 'brain-python-send-last-region)
 
 
 ;;;###autoload
@@ -238,9 +229,6 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
     (python-insert-string region-string)))
 
 ;;;###autoload
-(define-key evil-normal-state-map (kbd ",rl") 'python-reload-symbol-at-point)
-
-
 (defun wrap-python-shell-send-string (orig-fun &rest args)
   (if brainos-enable-sandbox-support
       (if-let ((f (buffer-file-name)))
@@ -258,7 +246,7 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
           (apply orig-fun args)))
     (apply orig-fun args)))
 
-
+;;;###autoload
 (defun wrap-python-shell-run (orig-fun &rest args)
   "Send strings to remote interpreter."
   (if brainos-enable-sandbox-support
@@ -423,9 +411,9 @@ if isinstance(%s, (types.FunctionType, types.MethodType)):
 
 (defun brainos-setup ()
   (global-set-key [?\C-\'] #'python-execute-file-in-remote)
-  (advice-add 'spacemacs/python-execute-file :around #'wrap-spacemaces/python-execute-file) 
-  (advice-add 'spacemacs//python-setup-shell :around #'wrap-spacemacs//python-setup-shell) 
-  (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named) 
+  (advice-add 'spacemacs/python-execute-file :around #'wrap-spacemaces/python-execute-file)
+  (advice-add 'spacemacs//python-setup-shell :around #'wrap-spacemacs//python-setup-shell)
+  (advice-add 'pytest-find-test-runner-in-dir-named :around #'wrap-pytest-find-test-runner-in-dir-named)
   (add-variable-watcher 'brainos-enable-sandbox-support #'brainos-setup-wrappers)
   )
 
@@ -455,9 +443,6 @@ With a prefix ARG invokes `projectile-commander' instead of
                    (find-file (concat project filepath))))
       (user-error "There are no known projects"))))
 
-(define-key evil-normal-state-map (kbd ",bpo") 'brain-open-in-project)
-
-
 ;;;###autoload
 (defun brain-launch-python ()
   (interactive)
@@ -470,7 +455,5 @@ With a prefix ARG invokes `projectile-commander' instead of
   (async-shell-command "ssh brain@sandbox /opt/shining_software/build.sh --big"
                        "Build Sandbox"))
 
-(define-key evil-normal-state-map (kbd ",bbs") 'brain-build-sandbox)
-(define-key evil-normal-state-map (kbd "'") 'async-shell-command)
 
 ;;; brainos.el ends here
