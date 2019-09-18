@@ -50,7 +50,7 @@ python-*-docs-html
 nov-places
 
 # Private directory
-private/
+# private/
 !private/README.md
 !private/snippets/README.md
 !private/templates/README.md
